@@ -1,341 +1,62 @@
-// AI Engine - Pattern-based decision analysis
-// Extracts options and generates pros/cons from natural language
+// AI Engine v2 - Context-aware decision analysis
+// Extracts meaning from natural language and generates unique, relevant pros/cons
 
 import { Option, ProCon, generateId } from './decisionEngine';
 
-// Decision type patterns for intelligent generation
-interface DecisionPattern {
-    keywords: string[];
-    type: string;
-    commonOptions: string[];
-    prosTemplates: { [key: string]: string[] };
-    consTemplates: { [key: string]: string[] };
-    hiddenRisks: { [key: string]: string[] };
-}
+// Keywords that indicate specific concerns/values
+const contextKeywords = {
+    money: ['salary', 'pay', 'money', 'cost', 'expensive', 'cheap', 'afford', 'budget', 'income', 'price', 'financial'],
+    career: ['job', 'career', 'work', 'position', 'role', 'company', 'boss', 'promotion', 'opportunity'],
+    location: ['move', 'relocate', 'city', 'location', 'distance', 'commute', 'travel', 'remote', 'office'],
+    relationship: ['relationship', 'partner', 'love', 'marriage', 'dating', 'breakup', 'together', 'family'],
+    health: ['health', 'stress', 'balance', 'burnout', 'mental', 'physical', 'exercise', 'sleep'],
+    growth: ['learn', 'grow', 'skill', 'experience', 'develop', 'challenge', 'opportunity'],
+    security: ['stable', 'secure', 'safe', 'risk', 'uncertain', 'guarantee', 'reliable'],
+    time: ['time', 'hours', 'schedule', 'flexible', 'deadline', 'urgent', 'wait'],
+    social: ['friends', 'family', 'people', 'network', 'community', 'alone', 'lonely'],
+};
 
-const decisionPatterns: DecisionPattern[] = [
-    {
-        keywords: ['job', 'offer', 'career', 'position', 'work', 'company', 'salary', 'role'],
-        type: 'career',
-        commonOptions: ['Accept the new position', 'Stay at current job', 'Negotiate for better terms'],
-        prosTemplates: {
-            'accept': [
-                'Higher salary potential',
-                'New growth opportunities',
-                'Fresh challenges to develop skills',
-                'Expanded professional network',
-                'Better work-life balance'
-            ],
-            'stay': [
-                'Job security and stability',
-                'Established relationships with colleagues',
-                'Known work environment',
-                'No adjustment period needed',
-                'Existing benefits and seniority'
-            ],
-            'negotiate': [
-                'Best of both worlds potential',
-                'Shows confidence and value',
-                'Could get better terms',
-                'Keeps options open',
-                'Demonstrates professional maturity'
-            ]
-        },
-        consTemplates: {
-            'accept': [
-                'Uncertainty in new environment',
-                'Leaving established relationships',
-                'Learning curve for new systems',
-                'Risk if company is unstable',
-                'May not meet expectations'
-            ],
-            'stay': [
-                'Missed opportunity for growth',
-                'Potential stagnation',
-                'Wonder "what if" later',
-                'Salary might not improve',
-                'Same challenges continue'
-            ],
-            'negotiate': [
-                'Could lose the offer entirely',
-                'May create tension',
-                'Takes time and energy',
-                'Uncertain outcome',
-                'Could reveal desperation'
-            ]
-        },
-        hiddenRisks: {
-            'accept': [
-                'Company culture might be toxic',
-                'Role could differ from description',
-                'Hidden expectations or overtime'
-            ],
-            'stay': [
-                'Company trajectory might decline',
-                'Resentment could build over time',
-                'Missed timing for career moves'
-            ],
-            'negotiate': [
-                'Perception of being difficult',
-                'Delayed start creates uncertainty',
-                'Competing offers might expire'
-            ]
-        }
+// Templates for generating context-specific insights
+const proConGenerators: Record<string, { pros: string[], cons: string[] }> = {
+    money_high: {
+        pros: ['Significantly better compensation', 'Improved financial security', 'More resources for goals'],
+        cons: ['May come with hidden trade-offs', 'Higher pay often means higher pressure', 'Money alone rarely brings fulfillment']
     },
-    {
-        keywords: ['move', 'relocate', 'city', 'apartment', 'house', 'rent', 'location', 'neighborhood'],
-        type: 'relocation',
-        commonOptions: ['Move to the new place', 'Stay where you are', 'Find a compromise location'],
-        prosTemplates: {
-            'move': [
-                'Fresh start and new experiences',
-                'Better opportunities in new area',
-                'Improved living conditions',
-                'Closer to desired amenities',
-                'Change of scenery for mental health'
-            ],
-            'stay': [
-                'No moving costs or hassle',
-                'Established community and friends',
-                'Familiar with the area',
-                'No disruption to routine',
-                'Keep current setup intact'
-            ],
-            'compromise': [
-                'Balances multiple priorities',
-                'Might find unexpected gems',
-                'Reduces extreme change',
-                'Could satisfy multiple needs',
-                'More options to explore'
-            ]
-        },
-        consTemplates: {
-            'move': [
-                'Moving costs and effort',
-                'Leaving friends and community',
-                'Adjustment period',
-                'Unknown neighborhood dynamics',
-                'Risk of not liking new place'
-            ],
-            'stay': [
-                'Missing out on better options',
-                'Current problems persist',
-                'May feel stuck or stagnant',
-                'Costs might increase anyway',
-                'Regret not taking the chance'
-            ],
-            'compromise': [
-                'Might not fully satisfy anyone',
-                'Extra research needed',
-                'Could end up with mediocre option',
-                'Decision fatigue from searching',
-                'May delay resolution'
-            ]
-        },
-        hiddenRisks: {
-            'move': [
-                'Lease or mortgage commitments',
-                'Climate might not suit you',
-                'Social isolation in new area'
-            ],
-            'stay': [
-                'Declining neighborhood quality',
-                'Rising costs without benefits',
-                'Missed timing for housing market'
-            ],
-            'compromise': [
-                'Neither option fully satisfied',
-                'Commute implications',
-                'School district considerations if applicable'
-            ]
-        }
+    money_low: {
+        pros: ['Lower financial pressure on decision', 'Focus on non-monetary factors', 'Freedom from money-driven choices'],
+        cons: ['May limit future options', 'Could create financial strain', 'Opportunity cost of lower earning potential']
     },
-    {
-        keywords: ['relationship', 'partner', 'dating', 'marriage', 'breakup', 'commitment', 'love'],
-        type: 'relationship',
-        commonOptions: ['Commit fully', 'End the relationship', 'Take a break to reflect'],
-        prosTemplates: {
-            'commit': [
-                'Deeper emotional connection',
-                'Shared future and goals',
-                'Partnership and support',
-                'Building something together',
-                'Emotional security'
-            ],
-            'end': [
-                'Freedom to find better fit',
-                'Personal growth opportunity',
-                'No more lingering doubts',
-                'Fresh start',
-                'Energy for self-focus'
-            ],
-            'break': [
-                'Time to think clearly',
-                'Reduces pressure',
-                'Perspective without drama',
-                'Tests feelings over time',
-                'Space for individual growth'
-            ]
-        },
-        consTemplates: {
-            'commit': [
-                'Risk if fundamental issues exist',
-                'Locked into potential problems',
-                'Less individual freedom',
-                'May ignore red flags',
-                'Emotional vulnerability'
-            ],
-            'end': [
-                'Loneliness and grief',
-                'Loss of shared life',
-                'Starting over is hard',
-                'Regret if fixable',
-                'Impact on mutual friends/family'
-            ],
-            'break': [
-                'Limbo state is stressful',
-                'Partner may not wait',
-                'Delays inevitable decision',
-                'Mixed signals',
-                'Hard to truly disconnect'
-            ]
-        },
-        hiddenRisks: {
-            'commit': [
-                'Patterns might repeat',
-                'External pressures influence decision',
-                'Sunk cost fallacy at play'
-            ],
-            'end': [
-                'Might idealize the past later',
-                'Rebound risk',
-                'Loneliness impacts judgment'
-            ],
-            'break': [
-                'Others might pursue your partner',
-                'Momentum harder to regain',
-                'Emotional toll of uncertainty'
-            ]
-        }
+    location_change: {
+        pros: ['Fresh environment and perspectives', 'New opportunities in different market', 'Chance to reinvent yourself'],
+        cons: ['Leaving established network behind', 'Adjustment period and loneliness risk', 'Unknown factors in new location']
     },
-    {
-        keywords: ['buy', 'purchase', 'invest', 'spend', 'money', 'expensive', 'afford', 'worth'],
-        type: 'financial',
-        commonOptions: ['Make the purchase', 'Wait and save more', 'Find an alternative'],
-        prosTemplates: {
-            'buy': [
-                'Immediate enjoyment or utility',
-                'No more waiting or wanting',
-                'Value gained from use',
-                'Could appreciate in value',
-                'Solves the current need'
-            ],
-            'wait': [
-                'More money saved',
-                'Prices might drop',
-                'Time to research better',
-                'Financial security maintained',
-                'Might lose desire (saving money)'
-            ],
-            'alternative': [
-                'Could find better value',
-                'Explore unknown options',
-                'Balance cost and quality',
-                'Learn more about needs',
-                'Creative problem solving'
-            ]
-        },
-        consTemplates: {
-            'buy': [
-                'Financial strain',
-                'Might regret expense',
-                'Better options could emerge',
-                'Opportunity cost',
-                'Buyers remorse risk'
-            ],
-            'wait': [
-                'Delayed gratification',
-                'Prices might increase',
-                'Miss limited opportunities',
-                'Continued inconvenience',
-                'Overthinking risk'
-            ],
-            'alternative': [
-                'Research takes time',
-                'May compromise on features',
-                'Decision fatigue',
-                'Unknown risks',
-                'Still spending money'
-            ]
-        },
-        hiddenRisks: {
-            'buy': [
-                'Hidden maintenance costs',
-                'Lifestyle inflation',
-                'Emotional spending'
-            ],
-            'wait': [
-                'Analysis paralysis',
-                'Scarcity creates urgency later',
-                'Opportunity truly passing'
-            ],
-            'alternative': [
-                'Unknown vendor risks',
-                'Quality unknown until tested',
-                'Return policies matter'
-            ]
-        }
-    }
-];
-
-// Default pattern for generic decisions
-const defaultPattern: DecisionPattern = {
-    keywords: [],
-    type: 'general',
-    commonOptions: ['Option A', 'Option B'],
-    prosTemplates: {
-        'optiona': [
-            'Potential for positive change',
-            'New experiences',
-            'Growth opportunity',
-            'Aligns with some goals',
-            'Forward momentum'
-        ],
-        'optionb': [
-            'Stability and safety',
-            'Known outcomes',
-            'Less disruption',
-            'Preserves current state',
-            'Lower risk'
-        ]
+    location_stay: {
+        pros: ['Preserved relationships and network', 'No disruption to current life', 'Known environment and comfort'],
+        cons: ['Potential stagnation', 'Missing out on new experiences', 'Same limitations continue']
     },
-    consTemplates: {
-        'optiona': [
-            'Uncertainty involved',
-            'Effort required',
-            'Risk of failure',
-            'Adjustment period',
-            'Opportunity cost'
-        ],
-        'optionb': [
-            'Missed opportunities',
-            'Potential stagnation',
-            'Same problems continue',
-            'Wonder "what if"',
-            'No forward progress'
-        ]
+    career_new: {
+        pros: ['Growth into new challenges', 'Expanded skill set', 'Fresh start with new team'],
+        cons: ['Proving yourself from scratch', 'Unknown company culture', 'Learning curve in new role']
     },
-    hiddenRisks: {
-        'optiona': [
-            'External factors beyond control',
-            'Hidden complications',
-            'Timing considerations'
-        ],
-        'optionb': [
-            'Gradual decline risk',
-            'Opportunity window closing',
-            'Regret accumulation'
-        ]
+    career_stay: {
+        pros: ['Established reputation and trust', 'Known expectations and dynamics', 'Job security from tenure'],
+        cons: ['Limited growth if ceiling reached', 'Comfortable but not growing', 'May breed resentment over time']
+    },
+    relationship_commit: {
+        pros: ['Deeper connection and partnership', 'Shared future and goals', 'Emotional security and support'],
+        cons: ['Less individual freedom', 'Risk if issues aren\'t addressed', 'Commitment amplifies problems']
+    },
+    relationship_leave: {
+        pros: ['Freedom to find better match', 'Personal growth opportunity', 'End to ongoing conflict'],
+        cons: ['Loneliness and grief period', 'Uncertainty of dating again', 'Possibly losing something fixable']
+    },
+    security_risk: {
+        pros: ['High upside potential', 'Personal growth through challenge', 'Breaking out of comfort zone'],
+        cons: ['Uncertainty and stress', 'Potential for significant loss', 'No safety net if it fails']
+    },
+    security_safe: {
+        pros: ['Predictability and stability', 'Lower stress environment', 'Foundation to build on'],
+        cons: ['Limited upside potential', 'May breed complacency', 'Regret from not taking chances']
     }
 };
 
@@ -344,148 +65,236 @@ export interface AIAnalysisResult {
     options: Option[];
     confidence: number;
     insight: string;
+    extractedContext: string[];
 }
 
 export function analyzeDecision(situationText: string): AIAnalysisResult {
     const lowerText = situationText.toLowerCase();
+    const words = lowerText.split(/\s+/);
 
-    // Find matching pattern
-    let matchedPattern = defaultPattern;
-    let maxMatches = 0;
+    // Extract context from the text
+    const extractedContext: string[] = [];
+    const contextScores: Record<string, number> = {};
 
-    for (const pattern of decisionPatterns) {
-        const matches = pattern.keywords.filter(keyword => lowerText.includes(keyword)).length;
-        if (matches > maxMatches) {
-            maxMatches = matches;
-            matchedPattern = pattern;
+    for (const [category, keywords] of Object.entries(contextKeywords)) {
+        const matches = keywords.filter(kw => lowerText.includes(kw));
+        if (matches.length > 0) {
+            contextScores[category] = matches.length;
+            extractedContext.push(...matches);
         }
     }
 
-    const confidence = Math.min(0.9, 0.5 + (maxMatches * 0.1));
+    // Determine primary decision type
+    const sortedContexts = Object.entries(contextScores).sort((a, b) => b[1] - a[1]);
+    const primaryType = sortedContexts[0]?.[0] || 'general';
 
-    // Extract or generate options
-    const extractedOptions = extractOptionsFromText(situationText, matchedPattern);
+    // Extract options from the text
+    const options = extractOptionsFromSituation(situationText, sortedContexts.map(c => c[0]));
 
-    // Generate insight
-    const insight = generateInsight(matchedPattern.type, extractedOptions);
+    // Generate personalized insight
+    const insight = generateInsight(situationText, primaryType, extractedContext);
+
+    const confidence = Math.min(0.95, 0.5 + (extractedContext.length * 0.05));
 
     return {
-        detectedType: matchedPattern.type,
-        options: extractedOptions,
+        detectedType: primaryType,
+        options,
         confidence,
-        insight
+        insight,
+        extractedContext
     };
 }
 
-function extractOptionsFromText(text: string, pattern: DecisionPattern): Option[] {
+function extractOptionsFromSituation(text: string, contexts: string[]): Option[] {
     const lowerText = text.toLowerCase();
     const options: Option[] = [];
 
-    // Try to find explicit options mentioned
-    const orMatches = text.match(/(?:should I|whether to|between|choose|decide)\s+([^?]+?)(?:\s+or\s+|\s+vs\.?\s+)([^?.]+)/i);
+    // Pattern matching for explicit options
+    const orPatterns = [
+        /should i\s+(.+?)\s+or\s+(.+?)(?:\?|$)/i,
+        /between\s+(.+?)\s+(?:and|or|vs\.?)\s+(.+?)(?:\?|$)/i,
+        /deciding\s+(?:whether\s+)?(?:to\s+)?(.+?)\s+or\s+(.+?)(?:\?|$)/i,
+        /(.+?)\s+vs\.?\s+(.+?)(?:\?|$)/i,
+    ];
 
-    if (orMatches) {
-        // User mentioned specific options
-        const option1Name = orMatches[1].trim();
-        const option2Name = orMatches[2].trim();
+    for (const pattern of orPatterns) {
+        const match = text.match(pattern);
+        if (match) {
+            const opt1 = match[1].trim();
+            const opt2 = match[2].trim();
 
+            options.push(
+                createContextualOption(capitalizeFirst(opt1), contexts, lowerText, true),
+                createContextualOption(capitalizeFirst(opt2), contexts, lowerText, false)
+            );
+            return options;
+        }
+    }
+
+    // Infer options from context if not explicitly stated
+    if (contexts.includes('career')) {
+        if (lowerText.includes('offer') || lowerText.includes('new job')) {
+            options.push(
+                createContextualOption('Take the new opportunity', contexts, lowerText, true),
+                createContextualOption('Stay in current position', contexts, lowerText, false)
+            );
+        } else {
+            options.push(
+                createContextualOption('Make the change', contexts, lowerText, true),
+                createContextualOption('Keep things as they are', contexts, lowerText, false)
+            );
+        }
+    } else if (contexts.includes('relationship')) {
         options.push(
-            createOptionWithProscons(option1Name, pattern, 0),
-            createOptionWithProscons(option2Name, pattern, 1)
+            createContextualOption('Move forward together', contexts, lowerText, true),
+            createContextualOption('Take a different path', contexts, lowerText, false)
+        );
+    } else if (contexts.includes('location')) {
+        options.push(
+            createContextualOption('Make the move', contexts, lowerText, true),
+            createContextualOption('Stay where you are', contexts, lowerText, false)
         );
     } else {
-        // Use pattern-based options
-        pattern.commonOptions.slice(0, 2).forEach((optName, index) => {
-            options.push(createOptionWithProscons(optName, pattern, index));
-        });
+        options.push(
+            createContextualOption('Go for it', contexts, lowerText, true),
+            createContextualOption('Hold back', contexts, lowerText, false)
+        );
     }
 
     return options;
 }
 
-function createOptionWithProscons(name: string, pattern: DecisionPattern, index: number): Option {
-    const templateKeys = Object.keys(pattern.prosTemplates);
-    const templateKey = templateKeys[index] || templateKeys[0];
+function createContextualOption(name: string, contexts: string[], originalText: string, isChange: boolean): Option {
+    const pros: ProCon[] = [];
+    const cons: ProCon[] = [];
 
-    const pros: ProCon[] = (pattern.prosTemplates[templateKey] || pattern.prosTemplates[templateKeys[0]])
-        .slice(0, 3)
-        .map(text => ({
-            id: generateId(),
-            text,
-            weight: Math.floor(Math.random() * 3) + 5, // 5-7
-        }));
+    // Generate pros and cons based on detected contexts
+    for (const context of contexts.slice(0, 3)) {
+        const key = getProConKey(context, isChange, originalText);
+        const templates = proConGenerators[key];
 
-    const cons: ProCon[] = (pattern.consTemplates[templateKey] || pattern.consTemplates[templateKeys[0]])
-        .slice(0, 3)
-        .map(text => ({
-            id: generateId(),
-            text,
-            weight: Math.floor(Math.random() * 3) + 4, // 4-6
-        }));
+        if (templates) {
+            // Pick contextually relevant pros/cons
+            templates.pros.forEach((text, i) => {
+                if (i < 2) {
+                    pros.push({ id: generateId(), text, weight: 7 - i });
+                }
+            });
+            templates.cons.forEach((text, i) => {
+                if (i < 2) {
+                    cons.push({ id: generateId(), text, weight: 6 - i });
+                }
+            });
+        }
+    }
+
+    // Add unique insight from original text
+    const uniqueInsight = extractUniqueInsight(originalText, isChange);
+    if (uniqueInsight) {
+        if (isChange) {
+            pros.unshift({ id: generateId(), text: uniqueInsight, weight: 8 });
+        } else {
+            cons.unshift({ id: generateId(), text: uniqueInsight, weight: 7 });
+        }
+    }
+
+    // Ensure at least one pro and con
+    if (pros.length === 0) {
+        pros.push({ id: generateId(), text: isChange ? 'Potential for positive change' : 'Stability and predictability', weight: 5 });
+    }
+    if (cons.length === 0) {
+        cons.push({ id: generateId(), text: isChange ? 'Uncertainty of new path' : 'Risk of stagnation', weight: 5 });
+    }
 
     return {
         id: generateId(),
         name,
-        pros,
-        cons,
+        pros: pros.slice(0, 4),
+        cons: cons.slice(0, 4),
         confidence: 5
     };
 }
 
-export function getHiddenRisks(optionName: string, decisionType: string): string[] {
-    const pattern = decisionPatterns.find(p => p.type === decisionType) || defaultPattern;
-    const key = Object.keys(pattern.hiddenRisks)[0];
-    return pattern.hiddenRisks[key] || [];
+function getProConKey(context: string, isChange: boolean, text: string): string {
+    if (context === 'money') {
+        return text.includes('higher') || text.includes('more') || text.includes('better') ? 'money_high' : 'money_low';
+    }
+    if (context === 'location') {
+        return isChange ? 'location_change' : 'location_stay';
+    }
+    if (context === 'career') {
+        return isChange ? 'career_new' : 'career_stay';
+    }
+    if (context === 'relationship') {
+        return isChange ? 'relationship_commit' : 'relationship_leave';
+    }
+    if (context === 'security') {
+        return isChange ? 'security_risk' : 'security_safe';
+    }
+    return isChange ? 'security_risk' : 'security_safe';
 }
 
-function generateInsight(type: string, options: Option[]): string {
+function extractUniqueInsight(text: string, isChange: boolean): string | null {
+    const lowerText = text.toLowerCase();
+
+    // Extract specific mentions
+    if (lowerText.includes('higher pay') || lowerText.includes('more money')) {
+        return isChange ? 'Better compensation as mentioned' : 'Current salary is acceptable';
+    }
+    if (lowerText.includes('relocate') || lowerText.includes('move')) {
+        return isChange ? 'New location brings new possibilities' : 'No disruption to your current life';
+    }
+    if (lowerText.includes('family') || lowerText.includes('kids')) {
+        return isChange ? 'Could benefit family long-term' : 'Family stability is preserved';
+    }
+    if (lowerText.includes('stress') || lowerText.includes('burnout')) {
+        return isChange ? 'Escape from current stressors' : 'Known stressors are manageable';
+    }
+    if (lowerText.includes('dream') || lowerText.includes('passion')) {
+        return isChange ? 'Aligned with your aspirations' : 'Sometimes stability enables dreams';
+    }
+
+    return null;
+}
+
+function generateInsight(text: string, primaryType: string, contexts: string[]): string {
+    const lowerText = text.toLowerCase();
+
+    // Generate a unique, situation-specific insight
+    const contextStr = contexts.slice(0, 3).join(', ');
+
     const insights: Record<string, string> = {
-        career: "Career decisions shape your trajectory for years. Consider not just salary, but growth, culture, and life balance.",
-        relocation: "Where you live affects every aspect of your life. Consider community, opportunity, and your daily experience.",
-        relationship: "Relationships are about shared growth. Focus on long-term compatibility over short-term comfort.",
-        financial: "Money decisions compound over time. Consider both immediate value and long-term financial health.",
-        general: "Every choice opens some doors and closes others. Focus on alignment with your core values."
+        money: `Your situation involves financial considerations. Beyond the numbers, ask: what does financial security mean to you personally?`,
+        career: `This is a career crossroads. Remember: the best job is rarely the safest or highest-paying—it's the one where you grow.`,
+        location: `A location change affects everything. Consider not just the place, but who you'll become there.`,
+        relationship: `Relationship decisions are rarely logical. Your gut already knows—this analysis helps you trust it.`,
+        health: `You've mentioned well-being indicators. No opportunity is worth your health. Factor this heavily.`,
+        growth: `Growth-focused decisions often feel risky. But staying comfortable has its own long-term costs.`,
+        security: `You're weighing security vs potential. Both have value—the question is which you need more right now.`,
+        time: `Time concerns are central here. You can't get time back, so consider what you'll wish you'd done.`,
+        social: `Social factors are at play. Humans need connection—isolation can undermine any "logical" choice.`,
+        general: `Based on: ${contextStr || 'your situation'}. Let's break this down systematically.`
     };
 
-    return insights[type] || insights.general;
+    return insights[primaryType] || insights.general;
+}
+
+function capitalizeFirst(str: string): string {
+    return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
 export function enhanceWithStrategistTone(recommendation: string, score: number): string {
-    const tones = {
-        strong_yes: [
-            "Here's the truth: the data strongly favors this path. Trust the numbers, and trust yourself.",
-            "Looking at this objectively, the answer is clear. Don't let fear hold you back.",
-            "This choice aligns with growth. Fortune favors the bold who prepare."
-        ],
-        lean_yes: [
-            "The scales tip positive here, but stay vigilant. Success requires follow-through.",
-            "There's potential here. Execute with intention and you'll likely succeed.",
-            "A calculated risk worth taking. Just keep your eyes open."
-        ],
-        neutral: [
-            "This is genuinely close. Neither path is obviously wrong. Look inward.",
-            "When the data is neutral, values become your compass. What matters most to you?",
-            "A true crossroads. Either choice could work if you commit fully."
-        ],
-        lean_no: [
-            "Caution is warranted here. The risks outweigh the visible gains.",
-            "Something isn't adding up. Listen to that instinct whispering doubt.",
-            "The path looks smoother than it is. Consider waiting for a better opportunity."
-        ],
-        strong_no: [
-            "Walk away. This has failure written in the margins. Your future self will thank you.",
-            "The analysis is clear: this isn't your fight. Save your energy for better battles.",
-            "Not every opportunity is right. Knowing when to say no is wisdom."
-        ]
-    };
-
-    let category: keyof typeof tones;
-    if (score > 20) category = 'strong_yes';
-    else if (score > 5) category = 'lean_yes';
-    else if (score > -5) category = 'neutral';
-    else if (score > -20) category = 'lean_no';
-    else category = 'strong_no';
-
-    const options = tones[category];
-    return options[Math.floor(Math.random() * options.length)];
+    if (score > 15) {
+        return "The analysis strongly favors this path. When the data is this clear, hesitation costs you. Move forward with conviction.";
+    }
+    if (score > 5) {
+        return "This option has the edge, but margins matter. Execute with intention and stay alert to changing conditions.";
+    }
+    if (score > -5) {
+        return "This is genuinely close. When data doesn't decide, your values must. What matters most to you right now?";
+    }
+    if (score > -15) {
+        return "Caution is warranted. The analysis suggests reconsidering, but you may have information the numbers don't capture.";
+    }
+    return "The data advises against this. Trust the process—or be very certain you know something it doesn't.";
 }
